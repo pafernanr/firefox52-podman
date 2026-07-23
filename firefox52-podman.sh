@@ -28,6 +28,9 @@ NEXT TIME:
 IF FIREFOX CRASHES:
   Select 'firefox' to relaunch without restarting the container.
 
+UNINSTALL:
+  Select 'uninstall' to remove everything (container, data, and image).
+
 PLUGINS:
   Flash and Java (Oracle JRE 8) are baked into the image.
   Verify at about:plugins inside Firefox.
@@ -42,15 +45,17 @@ build_image() {
 
     echo "[+] Building Firefox 52 image (one-time, may take a few minutes)..."
 
-    local builddir
+    local builddir buildlog
     builddir=$(mktemp -d)
+    buildlog=$(mktemp)
 
     cat > "$builddir/Containerfile" << 'CEOF'
 FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
+ENV MOZ_PLUGIN_PATH=/opt/plugins:/data/plugins
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libdbus-glib-1-2 libgtk2.0-0 libgtk-3-0 libxt6 libasound2 \
-        xvfb x11vnc novnc websockify openbox \
+        xvfb x11vnc novnc websockify openbox xterm \
         curl bzip2 ca-certificates && \
     curl -fSL "https://ftp.mozilla.org/pub/firefox/releases/52.9.0esr/linux-x86_64/en-US/firefox-52.9.0esr.tar.bz2" | \
         tar -xj -C /opt && \
@@ -63,7 +68,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ln -sf /opt/jre1.8.0_191/lib/amd64/libnpjp2.so /opt/plugins/libnpjp2.so && \
     rm -rf /var/lib/apt/lists/* && \
     printf '<!DOCTYPE html>\n<meta http-equiv="refresh" content="0;url=vnc.html?autoconnect=true&resize=scale">\n' \
-        > /usr/share/novnc/index.html
+        > /usr/share/novnc/index.html && \
+    mkdir -p /etc/xdg/openbox && \
+    printf '<?xml version="1.0" encoding="UTF-8"?>\n<openbox_menu xmlns="http://openbox.org/3.4/menu">\n  <menu id="root-menu" label="Applications">\n    <item label="Firefox 52"><action name="Execute"><execute>/opt/firefox52/firefox -no-remote -profile /data/profile</execute></action></item>\n    <item label="Terminal"><action name="Execute"><execute>xterm</execute></action></item>\n    <separator />\n    <item label="Reconfigure"><action name="Reconfigure" /></item>\n  </menu>\n</openbox_menu>\n' > /etc/xdg/openbox/menu.xml
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 EXPOSE 6080
@@ -96,12 +103,13 @@ x11vnc -display :1 -forever -nopw -shared -rfbport 5900 -q &
 exec websockify --web=/usr/share/novnc/ 6080 localhost:5900
 EEOF
 
-    if ! podman build -t "$IMAGE_NAME" "$builddir"; then
-        rm -rf "$builddir"
-        echo "ERROR: Image build failed."
+    if ! podman build -t "$IMAGE_NAME" "$builddir" > "$buildlog" 2>&1; then
+        echo "ERROR: Image build failed. Build log:"
+        cat "$buildlog"
+        rm -rf "$builddir" "$buildlog"
         exit 1
     fi
-    rm -rf "$builddir"
+    rm -rf "$builddir" "$buildlog"
     echo "[+] Image built."
 }
 
@@ -166,15 +174,18 @@ run_firefox() {
     echo "[+] Firefox relaunched. View at http://127.0.0.1:$PORT"
 }
 
-clean_env() {
-    echo "This removes container '$CONTAINER_NAME' and $HOST_DIR data."
-    echo "(The image is kept. Remove with: podman rmi $IMAGE_NAME)"
+uninstall_env() {
+    echo "This removes everything:"
+    echo "  - Container: $CONTAINER_NAME"
+    echo "  - Data: $HOST_DIR"
+    echo "  - Image: $IMAGE_NAME"
     read -p "Proceed? [y/N] " -n 1 -r
     echo ""
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         podman rm -f "$CONTAINER_NAME" 2>/dev/null || true
         podman unshare rm -rf "$HOST_DIR" 2>/dev/null || rm -rf "$HOST_DIR"
-        echo "[+] Cleaned."
+        podman rmi -f "$IMAGE_NAME" 2>/dev/null || true
+        echo "[+] Uninstalled."
     fi
 }
 
@@ -185,8 +196,8 @@ run_action() {
         restart) stop_env; start_env ;;
         status)  status_env ;;
         firefox) run_firefox ;;
-        clean)   clean_env ;;
-        *)       usage ;;
+        uninstall) uninstall_env ;;
+        *)         usage ;;
     esac
 }
 
@@ -196,7 +207,7 @@ else
     usage
     echo ""
     PS3="Select action: "
-    select action in start stop restart status firefox clean quit; do
+    select action in start stop restart status firefox uninstall quit; do
         case "$action" in
             quit) exit 0 ;;
             "")   echo "Invalid option." ;;

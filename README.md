@@ -39,7 +39,7 @@ Firefox 52 launches automatically with Flash and Java enabled.
 Run the script without arguments for an interactive menu, or pass a command directly:
 
 ```
-./firefox52-podman.sh {start|stop|restart|status|firefox|clean}
+./firefox52-podman.sh {start|stop|restart|status|firefox|uninstall}
 ```
 
 | Command   | Description                                        |
@@ -49,7 +49,7 @@ Run the script without arguments for an interactive menu, or pass a command dire
 | `restart` | Restart the container                              |
 | `status`  | Check if the container is running                  |
 | `firefox` | Relaunch Firefox if it crashed                     |
-| `clean`   | Remove the container and `~/firefox52-podman/` data  |
+| `uninstall` | Remove container, data, and image             |
 
 ## How it works
 
@@ -98,11 +98,7 @@ Inside Firefox 52, navigate to `about:plugins`. You should see:
 ## Cleanup
 
 ```bash
-# Remove container and data (keeps image for fast restart)
-./firefox52-podman.sh clean
-
-# Also remove the image
-podman rmi localhost/firefox52
+./firefox52-podman.sh uninstall
 ```
 
 ## License
@@ -112,3 +108,12 @@ This project packages third-party software under their respective licenses:
 - Firefox 52 ESR — [Mozilla Public License](https://www.mozilla.org/en-US/MPL/)
 - Adobe Flash Player — proprietary, EOL since December 2020
 - Oracle JRE 8 — [Oracle Binary Code License](https://www.oracle.com/java/technologies/javase/jdk-faqs.html)
+
+## Disclaimer
+
+Adobe Flash Player and Oracle JRE 8 are proprietary software. Their licenses
+prohibit redistribution, so they are not included in this repository. During
+the image build, the script downloads them from [archive.org](https://archive.org),
+which hosts them under a digital preservation rationale. These URLs may break
+at any time if the rights holders request removal. This project does not claim
+any right to redistribute these files.
