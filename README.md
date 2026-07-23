@@ -49,7 +49,7 @@ Run the script without arguments for an interactive menu, or pass a command dire
 | `restart` | Restart the container                              |
 | `status`  | Check if the container is running                  |
 | `firefox` | Relaunch Firefox if it crashed                     |
-| `clean`   | Remove the container and `~/legacy-firefox/` data  |
+| `clean`   | Remove the container and `~/firefox52-podman/` data  |
 
 ## How it works
 
@@ -76,7 +76,7 @@ On start, it runs a virtual X display, launches Firefox 52, and exposes
 it via noVNC on port 6080. Your browser connects over plain HTTP — no
 VNC client needed.
 
-Profile data (bookmarks, settings) persists in `~/legacy-firefox/profile/`
+Profile data (bookmarks, settings) persists in `~/firefox52-podman/profile/`
 across container restarts.
 
 ## Verifying plugins
@@ -90,10 +90,10 @@ Inside Firefox 52, navigate to `about:plugins`. You should see:
 
 | Path | Description |
 |------|-------------|
-| `~/legacy-firefox/profile/` | Firefox profile (persisted) |
-| `~/legacy-firefox/plugins/` | Extra plugins (bind-mounted) |
+| `~/firefox52-podman/profile/` | Firefox profile (persisted) |
+| `~/firefox52-podman/plugins/` | Extra plugins (bind-mounted) |
 | `localhost/firefox52` | Podman image |
-| `legacy-firefox` | Podman container name |
+| `firefox52-podman` | Podman container name |
 
 ## Cleanup
 

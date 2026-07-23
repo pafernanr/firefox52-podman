@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-HOST_DIR="$HOME/legacy-firefox"
-CONTAINER_NAME="legacy-firefox"
+HOST_DIR="$HOME/firefox52-podman"
+CONTAINER_NAME="firefox52-podman"
 IMAGE_NAME="localhost/firefox52"
 PORT=6080
 
@@ -167,7 +167,7 @@ run_firefox() {
 }
 
 clean_env() {
-    echo "This removes container '$CONTAINER_NAME' and ~/legacy-firefox/ data."
+    echo "This removes container '$CONTAINER_NAME' and $HOST_DIR data."
     echo "(The image is kept. Remove with: podman rmi $IMAGE_NAME)"
     read -p "Proceed? [y/N] " -n 1 -r
     echo ""
