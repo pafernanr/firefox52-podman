@@ -4,10 +4,9 @@ set -euo pipefail
 HOST_DIR="$HOME/firefox52-podman"
 CONTAINER_NAME="firefox52-podman"
 IMAGE_NAME="localhost/firefox52"
-PORT=6080
 
-usage() {
-    cat <<EOF
+banner() {
+    cat <<'EOF'
 ========================================================
          LEGACY FIREFOX 52 ESR IN PODMAN
 ========================================================
@@ -15,24 +14,39 @@ usage() {
 Firefox 52 with NPAPI plugin support running isolated
 in a Podman container, accessible via web browser.
 
-FIRST TIME:
-  1. Run this script and select 'start'
-     (builds the image on first run, may take a few minutes)
-  2. Open http://127.0.0.1:$PORT in your browser
-     Firefox 52 launches automatically inside the noVNC window
-  3. When done, select 'stop'
-
-NEXT TIME:
-  Select 'start', open http://127.0.0.1:$PORT, done.
-
-UNINSTALL:
-  Select 'uninstall' to remove everything (container, data, and image).
-
 PLUGINS:
   Flash and Java (Oracle JRE 8) are baked into the image.
   Verify at about:plugins inside Firefox.
+
+UNINSTALL:
+  Select 'uninstall' to remove everything.
 ========================================================
 EOF
+}
+
+find_free_port() {
+    local port
+    for port in $(seq 6080 6099); do
+        if ! ss -tlnH | grep -q ":${port} "; then
+            echo "$port"
+            return
+        fi
+    done
+    echo "ERROR: No free port in range 6080-6099" >&2
+    exit 1
+}
+
+get_container_port() {
+    podman port "$CONTAINER_NAME" 6080/tcp 2>/dev/null | sed 's/.*://'
+}
+
+is_running() {
+    podman container exists "$CONTAINER_NAME" 2>/dev/null &&
+    [ "$(podman inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null)" = "true" ]
+}
+
+is_installed() {
+    [ -d "$HOST_DIR" ]
 }
 
 build_image() {
@@ -115,19 +129,25 @@ start_env() {
     build_image
 
     if podman container exists "$CONTAINER_NAME" 2>/dev/null; then
-        if [ "$(podman inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null)" = "true" ]; then
-            echo "[+] Already running at http://127.0.0.1:$PORT"
+        if is_running; then
+            local port
+            port=$(get_container_port)
+            echo "[+] Already running at http://127.0.0.1:$port"
             return
         fi
         podman start "$CONTAINER_NAME" >/dev/null
+        local port
+        port=$(get_container_port)
     else
+        local port
+        port=$(find_free_port)
         podman run -d \
             --name "$CONTAINER_NAME" \
-            -p "127.0.0.1:$PORT:6080" \
+            -p "127.0.0.1:${port}:6080" \
             -v "$HOST_DIR:/data:Z" \
             "$IMAGE_NAME" >/dev/null
     fi
-    echo "[+] Started. Open http://127.0.0.1:$PORT"
+    echo "[+] Started. Open http://127.0.0.1:${port}"
 }
 
 stop_env() {
@@ -144,8 +164,10 @@ status_env() {
         echo "NOT INSTALLED"
         return
     fi
-    if [ "$(podman inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null)" = "true" ]; then
-        echo "RUNNING (http://127.0.0.1:$PORT)"
+    if is_running; then
+        local port
+        port=$(get_container_port)
+        echo "RUNNING (http://127.0.0.1:$port)"
     else
         echo "STOPPED"
     fi
@@ -173,30 +195,46 @@ run_action() {
         restart)   stop_env; start_env ;;
         status)    status_env ;;
         uninstall) uninstall_env ;;
-        *)         usage ;;
+        *)         banner ;;
     esac
+}
+
+show_menu() {
+    local -a actions=("$@")
+    echo ""
+    local i=1
+    for a in "${actions[@]}"; do
+        echo "  ${i}) ${a}"
+        ((i++))
+    done
+    echo "  q) quit"
+    echo ""
+    read -p "Select action: " choice
+    if [[ "$choice" == "q" ]]; then
+        exit 0
+    elif [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#actions[@]} )); then
+        run_action "${actions[$((choice-1))]}"
+    else
+        echo "Invalid option."
+    fi
 }
 
 if [ $# -gt 0 ]; then
     run_action "$1"
 else
-    usage
-    echo ""
-    echo "  1) start"
-    echo "  2) stop"
-    echo "  3) restart"
-    echo "  4) status"
-    echo "  5) uninstall"
-    echo "  q) quit"
-    echo ""
-    read -p "Select action: " choice
-    case "$choice" in
-        1) run_action start ;;
-        2) run_action stop ;;
-        3) run_action restart ;;
-        4) run_action status ;;
-        5) run_action uninstall ;;
-        q) exit 0 ;;
-        *) echo "Invalid option." ;;
-    esac
+    banner
+    if ! is_installed; then
+        echo ""
+        read -p "Install Firefox 52 ESR? [y/N] " -n 1 -r
+        echo ""
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            start_env
+        fi
+    elif is_running; then
+        echo ""
+        echo "[+] Running at http://127.0.0.1:$(get_container_port)"
+        show_menu stop restart status uninstall
+    else
+        show_menu start restart status uninstall
+    fi
 fi

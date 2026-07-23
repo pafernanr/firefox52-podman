@@ -24,19 +24,19 @@ No host dependencies. No Wayland conflicts. No security risk to your system.
 
 ```bash
 chmod +x firefox52-podman.sh
-
-# First time (builds the image, may take a few minutes)
-./firefox52-podman.sh start
-
-# Open in your browser
-xdg-open http://127.0.0.1:6080
+./firefox52-podman.sh
 ```
 
-Firefox 52 launches automatically with Flash and Java enabled.
+On first run the script asks for confirmation, builds the image, starts the
+container, and prints the noVNC URL. On subsequent runs it detects the current
+state — if the container is already running it shows the URL, otherwise it
+offers an interactive menu.
+
+The host port is selected automatically from the 6080-6099 range.
 
 ## Usage
 
-Run the script without arguments for an interactive menu, or pass a command directly:
+Run the script without arguments for auto-detection, or pass a command directly:
 
 ```
 ./firefox52-podman.sh {start|stop|restart|status|uninstall}
@@ -63,7 +63,7 @@ Run the script without arguments for an interactive menu, or pass a command dire
 │  websockify (noVNC)  ← port 6080            │
 └──────────────────────┬──────────────────────┘
                        │
-        http://127.0.0.1:6080
+        http://127.0.0.1:<auto>
                        │
               ┌────────┴────────┐
               │  Your browser   │
@@ -72,8 +72,8 @@ Run the script without arguments for an interactive menu, or pass a command dire
 
 The container builds a single image with all dependencies baked in.
 On start, it runs a virtual X display, launches Firefox 52, and exposes
-it via noVNC on port 6080. Your browser connects over plain HTTP — no
-VNC client needed.
+it via noVNC on an automatically selected port (6080-6099). Your browser
+connects over plain HTTP — no VNC client needed.
 
 Profile data (bookmarks, settings) persists in `~/firefox52-podman/profile/`
 across container restarts.
