@@ -25,9 +25,6 @@ FIRST TIME:
 NEXT TIME:
   Select 'start', open http://127.0.0.1:$PORT, done.
 
-IF FIREFOX CRASHES:
-  Select 'firefox' to relaunch without restarting the container.
-
 UNINSTALL:
   Select 'uninstall' to remove everything (container, data, and image).
 
@@ -113,17 +110,6 @@ EEOF
     echo "[+] Image built."
 }
 
-ensure_running() {
-    if ! podman container exists "$CONTAINER_NAME" 2>/dev/null; then
-        echo "Container does not exist. Select 'start' first."
-        return 1
-    fi
-    if [ "$(podman inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null)" != "true" ]; then
-        echo "Container is stopped. Select 'start' first."
-        return 1
-    fi
-}
-
 start_env() {
     mkdir -p "$HOST_DIR/plugins" "$HOST_DIR/profile"
     build_image
@@ -165,15 +151,6 @@ status_env() {
     fi
 }
 
-run_firefox() {
-    if ! ensure_running; then return 1; fi
-    podman exec "$CONTAINER_NAME" killall firefox 2>/dev/null || true
-    sleep 0.5
-    podman exec -d -e DISPLAY=:1 -e MOZ_PLUGIN_PATH=/opt/plugins:/data/plugins \
-        "$CONTAINER_NAME" /opt/firefox52/firefox -no-remote -profile /data/profile
-    echo "[+] Firefox relaunched. View at http://127.0.0.1:$PORT"
-}
-
 uninstall_env() {
     echo "This removes everything:"
     echo "  - Container: $CONTAINER_NAME"
@@ -191,11 +168,10 @@ uninstall_env() {
 
 run_action() {
     case "$1" in
-        start)   start_env ;;
-        stop)    stop_env ;;
-        restart) stop_env; start_env ;;
-        status)  status_env ;;
-        firefox) run_firefox ;;
+        start)     start_env ;;
+        stop)      stop_env ;;
+        restart)   stop_env; start_env ;;
+        status)    status_env ;;
         uninstall) uninstall_env ;;
         *)         usage ;;
     esac
@@ -206,12 +182,21 @@ if [ $# -gt 0 ]; then
 else
     usage
     echo ""
-    PS3="Select action: "
-    select action in start stop restart status firefox uninstall quit; do
-        case "$action" in
-            quit) exit 0 ;;
-            "")   echo "Invalid option." ;;
-            *)    run_action "$action"; break ;;
-        esac
-    done
+    echo "  1) start"
+    echo "  2) stop"
+    echo "  3) restart"
+    echo "  4) status"
+    echo "  5) uninstall"
+    echo "  q) quit"
+    echo ""
+    read -p "Select action: " choice
+    case "$choice" in
+        1) run_action start ;;
+        2) run_action stop ;;
+        3) run_action restart ;;
+        4) run_action status ;;
+        5) run_action uninstall ;;
+        q) exit 0 ;;
+        *) echo "Invalid option." ;;
+    esac
 fi

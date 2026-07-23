@@ -39,7 +39,7 @@ Firefox 52 launches automatically with Flash and Java enabled.
 Run the script without arguments for an interactive menu, or pass a command directly:
 
 ```
-./firefox52-podman.sh {start|stop|restart|status|firefox|uninstall}
+./firefox52-podman.sh {start|stop|restart|status|uninstall}
 ```
 
 | Command   | Description                                        |
@@ -48,7 +48,6 @@ Run the script without arguments for an interactive menu, or pass a command dire
 | `stop`    | Stop the container (frees RAM/CPU)                 |
 | `restart` | Restart the container                              |
 | `status`  | Check if the container is running                  |
-| `firefox` | Relaunch Firefox if it crashed                     |
 | `uninstall` | Remove container, data, and image             |
 
 ## How it works
