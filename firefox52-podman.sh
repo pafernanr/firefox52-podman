@@ -1,0 +1,206 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+HOST_DIR="$HOME/legacy-firefox"
+CONTAINER_NAME="legacy-firefox"
+IMAGE_NAME="localhost/firefox52"
+PORT=6080
+
+usage() {
+    cat <<EOF
+========================================================
+         LEGACY FIREFOX 52 ESR IN PODMAN
+========================================================
+
+Firefox 52 with NPAPI plugin support running isolated
+in a Podman container, accessible via web browser.
+
+FIRST TIME:
+  1. Run this script and select 'start'
+     (builds the image on first run, may take a few minutes)
+  2. Open http://127.0.0.1:$PORT in your browser
+     Firefox 52 launches automatically inside the noVNC window
+  3. When done, select 'stop'
+
+NEXT TIME:
+  Select 'start', open http://127.0.0.1:$PORT, done.
+
+IF FIREFOX CRASHES:
+  Select 'firefox' to relaunch without restarting the container.
+
+PLUGINS:
+  Flash and Java (Oracle JRE 8) are baked into the image.
+  Verify at about:plugins inside Firefox.
+========================================================
+EOF
+}
+
+build_image() {
+    if podman image exists "$IMAGE_NAME" 2>/dev/null; then
+        return 0
+    fi
+
+    echo "[+] Building Firefox 52 image (one-time, may take a few minutes)..."
+
+    local builddir
+    builddir=$(mktemp -d)
+
+    cat > "$builddir/Containerfile" << 'CEOF'
+FROM ubuntu:22.04
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libdbus-glib-1-2 libgtk2.0-0 libgtk-3-0 libxt6 libasound2 \
+        xvfb x11vnc novnc websockify openbox \
+        curl bzip2 ca-certificates && \
+    curl -fSL "https://ftp.mozilla.org/pub/firefox/releases/52.9.0esr/linux-x86_64/en-US/firefox-52.9.0esr.tar.bz2" | \
+        tar -xj -C /opt && \
+    mv /opt/firefox /opt/firefox52 && \
+    mkdir -p /opt/plugins && \
+    curl -fSL "https://web.archive.org/web/20200530062840if_/https://fpdownload.adobe.com/get/flashplayer/pdc/32.0.0.371/flash_player_npapi_linux.x86_64.tar.gz" | \
+        tar -xz -C /opt/plugins libflashplayer.so && \
+    curl -fSL "https://archive.org/download/Java-Archive/Java%20SE%208%20%288u202%20and%20earlier%29/8u191/JRE/jre-8u191-linux-x64.tar.gz" | \
+        tar -xz -C /opt --strip-components=0 && \
+    ln -sf /opt/jre1.8.0_191/lib/amd64/libnpjp2.so /opt/plugins/libnpjp2.so && \
+    rm -rf /var/lib/apt/lists/* && \
+    printf '<!DOCTYPE html>\n<meta http-equiv="refresh" content="0;url=vnc.html?autoconnect=true&resize=scale">\n' \
+        > /usr/share/novnc/index.html
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+EXPOSE 6080
+CMD ["/entrypoint.sh"]
+CEOF
+
+    cat > "$builddir/entrypoint.sh" << 'EEOF'
+#!/bin/bash
+mkdir -p /data/profile /data/plugins
+
+if [ ! -f /data/profile/user.js ]; then
+    cat > /data/profile/user.js << 'PREFS'
+user_pref("app.update.enabled", false);
+user_pref("app.update.auto", false);
+user_pref("app.update.mode", 0);
+user_pref("app.update.service.enabled", false);
+user_pref("extensions.strictCompatibility", false);
+user_pref("plugin.state.flash", 2);
+user_pref("plugin.state.java", 2);
+PREFS
+fi
+
+Xvfb :1 -screen 0 1280x800x24 -ac &
+sleep 1
+export DISPLAY=:1
+openbox &
+export MOZ_PLUGIN_PATH=/opt/plugins:/data/plugins
+/opt/firefox52/firefox -no-remote -profile /data/profile &
+x11vnc -display :1 -forever -nopw -shared -rfbport 5900 -q &
+exec websockify --web=/usr/share/novnc/ 6080 localhost:5900
+EEOF
+
+    if ! podman build -t "$IMAGE_NAME" "$builddir"; then
+        rm -rf "$builddir"
+        echo "ERROR: Image build failed."
+        exit 1
+    fi
+    rm -rf "$builddir"
+    echo "[+] Image built."
+}
+
+ensure_running() {
+    if ! podman container exists "$CONTAINER_NAME" 2>/dev/null; then
+        echo "Container does not exist. Select 'start' first."
+        return 1
+    fi
+    if [ "$(podman inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null)" != "true" ]; then
+        echo "Container is stopped. Select 'start' first."
+        return 1
+    fi
+}
+
+start_env() {
+    mkdir -p "$HOST_DIR/plugins" "$HOST_DIR/profile"
+    build_image
+
+    if podman container exists "$CONTAINER_NAME" 2>/dev/null; then
+        if [ "$(podman inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null)" = "true" ]; then
+            echo "[+] Already running at http://127.0.0.1:$PORT"
+            return
+        fi
+        podman start "$CONTAINER_NAME" >/dev/null
+    else
+        podman run -d \
+            --name "$CONTAINER_NAME" \
+            -p "127.0.0.1:$PORT:6080" \
+            -v "$HOST_DIR:/data:Z" \
+            "$IMAGE_NAME" >/dev/null
+    fi
+    echo "[+] Started. Open http://127.0.0.1:$PORT"
+}
+
+stop_env() {
+    if podman container exists "$CONTAINER_NAME" 2>/dev/null; then
+        podman stop "$CONTAINER_NAME" >/dev/null
+        echo "[+] Stopped."
+    else
+        echo "[-] Container does not exist."
+    fi
+}
+
+status_env() {
+    if ! podman container exists "$CONTAINER_NAME" 2>/dev/null; then
+        echo "NOT INSTALLED"
+        return
+    fi
+    if [ "$(podman inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null)" = "true" ]; then
+        echo "RUNNING (http://127.0.0.1:$PORT)"
+    else
+        echo "STOPPED"
+    fi
+}
+
+run_firefox() {
+    if ! ensure_running; then return 1; fi
+    podman exec "$CONTAINER_NAME" killall firefox 2>/dev/null || true
+    sleep 0.5
+    podman exec -d -e DISPLAY=:1 -e MOZ_PLUGIN_PATH=/opt/plugins:/data/plugins \
+        "$CONTAINER_NAME" /opt/firefox52/firefox -no-remote -profile /data/profile
+    echo "[+] Firefox relaunched. View at http://127.0.0.1:$PORT"
+}
+
+clean_env() {
+    echo "This removes container '$CONTAINER_NAME' and ~/legacy-firefox/ data."
+    echo "(The image is kept. Remove with: podman rmi $IMAGE_NAME)"
+    read -p "Proceed? [y/N] " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        podman rm -f "$CONTAINER_NAME" 2>/dev/null || true
+        podman unshare rm -rf "$HOST_DIR" 2>/dev/null || rm -rf "$HOST_DIR"
+        echo "[+] Cleaned."
+    fi
+}
+
+run_action() {
+    case "$1" in
+        start)   start_env ;;
+        stop)    stop_env ;;
+        restart) stop_env; start_env ;;
+        status)  status_env ;;
+        firefox) run_firefox ;;
+        clean)   clean_env ;;
+        *)       usage ;;
+    esac
+}
+
+if [ $# -gt 0 ]; then
+    run_action "$1"
+else
+    usage
+    echo ""
+    PS3="Select action: "
+    select action in start stop restart status firefox clean quit; do
+        case "$action" in
+            quit) exit 0 ;;
+            "")   echo "Invalid option." ;;
+            *)    run_action "$action"; break ;;
+        esac
+    done
+fi

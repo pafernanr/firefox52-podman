@@ -1,0 +1,114 @@
+# firefox52-podman
+
+> *Do you remember when browsers were browsers and ran their own Flash and Java plugins?*
+
+Run Firefox 52 ESR with Flash Player and Java (NPAPI) in an isolated
+Podman container, accessible through your modern browser via noVNC.
+
+No host dependencies. No Wayland conflicts. No security risk to your system.
+
+## What's inside
+
+- **Firefox 52.9.0 ESR** — last Firefox with NPAPI plugin support
+- **Adobe Flash Player 32.0.0.371** — NPAPI plugin (`libflashplayer.so`)
+- **Oracle JRE 8u191** — Java NPAPI plugin (`libnpjp2.so`)
+- **noVNC** — browser-based VNC client, no extra software needed
+- Everything runs inside a rootless Podman container (Ubuntu 22.04)
+
+## Requirements
+
+- Linux x86_64
+- [Podman](https://podman.io/) (rootless, no Docker needed)
+
+## Quick start
+
+```bash
+chmod +x firefox52-podman.sh
+
+# First time (builds the image, may take a few minutes)
+./firefox52-podman.sh start
+
+# Open in your browser
+xdg-open http://127.0.0.1:6080
+```
+
+Firefox 52 launches automatically with Flash and Java enabled.
+
+## Usage
+
+Run the script without arguments for an interactive menu, or pass a command directly:
+
+```
+./firefox52-podman.sh {start|stop|restart|status|firefox|clean}
+```
+
+| Command   | Description                                        |
+|-----------|----------------------------------------------------|
+| `start`   | Build image (first time) and start the container   |
+| `stop`    | Stop the container (frees RAM/CPU)                 |
+| `restart` | Restart the container                              |
+| `status`  | Check if the container is running                  |
+| `firefox` | Relaunch Firefox if it crashed                     |
+| `clean`   | Remove the container and `~/legacy-firefox/` data  |
+
+## How it works
+
+```
+┌─────────────────────────────────────────────┐
+│  Podman container (Ubuntu 22.04)            │
+│                                             │
+│  Xvfb (:1)  →  openbox  →  Firefox 52      │
+│     ↓                       ├ Flash 32      │
+│  x11vnc                     └ Java 8        │
+│     ↓                                       │
+│  websockify (noVNC)  ← port 6080            │
+└──────────────────────┬──────────────────────┘
+                       │
+        http://127.0.0.1:6080
+                       │
+              ┌────────┴────────┐
+              │  Your browser   │
+              └─────────────────┘
+```
+
+The container builds a single image with all dependencies baked in.
+On start, it runs a virtual X display, launches Firefox 52, and exposes
+it via noVNC on port 6080. Your browser connects over plain HTTP — no
+VNC client needed.
+
+Profile data (bookmarks, settings) persists in `~/legacy-firefox/profile/`
+across container restarts.
+
+## Verifying plugins
+
+Inside Firefox 52, navigate to `about:plugins`. You should see:
+
+- **Shockwave Flash** — Version 32.0.0.371
+- **Java(TM) Plug-in** — Version 1.8.0_191
+
+## Files
+
+| Path | Description |
+|------|-------------|
+| `~/legacy-firefox/profile/` | Firefox profile (persisted) |
+| `~/legacy-firefox/plugins/` | Extra plugins (bind-mounted) |
+| `localhost/firefox52` | Podman image |
+| `legacy-firefox` | Podman container name |
+
+## Cleanup
+
+```bash
+# Remove container and data (keeps image for fast restart)
+./firefox52-podman.sh clean
+
+# Also remove the image
+podman rmi localhost/firefox52
+```
+
+## License
+
+This project packages third-party software under their respective licenses:
+
+- Firefox 52 ESR — [Mozilla Public License](https://www.mozilla.org/en-US/MPL/)
+- Adobe Flash Player — proprietary, EOL since December 2020
+- Oracle JRE 8 — [Oracle Binary Code License](https://www.oracle.com/java/technologies/javase/jdk-faqs.html)
