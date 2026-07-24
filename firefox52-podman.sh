@@ -14,14 +14,8 @@ banner() {
 ========================================================
          LEGACY FIREFOX 52 ESR IN PODMAN
 ========================================================
-
-Firefox 52 with NPAPI plugin support running isolated
-in a Podman container, accessible via web browser.
-
-PLUGINS:
-  Flash and Java (Oracle JRE 8) are baked into the image.
-  Verify at about:plugins inside Firefox.
-
+Firefox 52 with Flash and Java plugins, running in a
+Podman container, accessible via your web browser.
 ========================================================
 EOF
 }
@@ -170,20 +164,6 @@ stop_env() {
     fi
 }
 
-status_env() {
-    if ! podman container exists "$CONTAINER_NAME" 2>/dev/null; then
-        echo "NOT INSTALLED"
-        return
-    fi
-    if is_running; then
-        local port
-        port=$(get_container_port)
-        echo "RUNNING (http://127.0.0.1:$port)"
-    else
-        echo "STOPPED"
-    fi
-}
-
 uninstall_env() {
     echo "This removes everything:"
     echo "  - Container: $CONTAINER_NAME"
@@ -204,7 +184,6 @@ run_action() {
         start)          start_env "127.0.0.1" ;;
         start-exposed)  start_env "0.0.0.0" ;;
         stop)           stop_env ;;
-        status)         status_env ;;
         uninstall)      uninstall_env ;;
         *)              banner ;;
     esac
@@ -249,8 +228,8 @@ else
     elif is_running; then
         echo ""
         echo "[+] Running at http://127.0.0.1:$(get_container_port)"
-        show_menu "stop=stop" "status=status" "uninstall=uninstall"
+        show_menu "stop=stop" "uninstall=uninstall"
     else
-        show_menu "Start (localhost only)=start" "Start (network accessible)=start-exposed" "status=status" "uninstall=uninstall"
+        show_menu "Start (localhost only)=start" "Start (network accessible)=start-exposed" "uninstall=uninstall"
     fi
 fi
