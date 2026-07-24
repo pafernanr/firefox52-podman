@@ -114,7 +114,7 @@ x11vnc -display :1 -forever -nopw -shared -rfbport 5900 -q &
 exec websockify --web=/usr/share/novnc/ 6080 localhost:5900
 EEOF
 
-    if ! podman build -t "$IMAGE_NAME" "$builddir" > "$buildlog" 2>&1; then
+    if ! podman build --isolation chroot -t "$IMAGE_NAME" "$builddir" > "$buildlog" 2>&1; then
         echo "ERROR: Image build failed. Build log:"
         cat "$buildlog"
         rm -rf "$builddir" "$buildlog"
