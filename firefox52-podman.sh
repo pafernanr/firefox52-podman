@@ -245,7 +245,9 @@ else
         read -p "Install Firefox 52 ESR? [y/N] " -n 1 -r
         echo ""
         if [[ $REPLY =~ ^[Yy]$ ]]; then
-            start_env "127.0.0.1"
+            mkdir -p "$HOST_DIR/plugins" "$HOST_DIR/profile"
+            build_image
+            show_menu "Start (localhost only)=start" "Start (network accessible)=start-exposed"
         fi
     elif is_running; then
         echo ""
