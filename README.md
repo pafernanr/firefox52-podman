@@ -43,16 +43,21 @@ The host port is selected automatically from the 6080-6099 range.
 Run the script without arguments for auto-detection, or pass a command directly:
 
 ```
-./firefox52-podman.sh {start|stop|restart|status|uninstall}
+./firefox52-podman.sh {start|start-exposed|stop|restart|status|uninstall}
 ```
 
 | Command   | Description                                        |
 |-----------|----------------------------------------------------|
-| `start`   | Build image (first time) and start the container   |
+| `start`   | Build image (first time) and start on localhost only |
+| `start-exposed` | Start accessible from all network interfaces |
 | `stop`    | Stop the container (frees RAM/CPU)                 |
 | `restart` | Restart the container                              |
 | `status`  | Check if the container is running                  |
 | `uninstall` | Remove container, data, and image             |
+
+> **Note:** `start-exposed` binds to `0.0.0.0`, making the noVNC session
+> reachable from the network. The session has no authentication — use only
+> on trusted networks.
 
 ## How it works
 

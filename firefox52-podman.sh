@@ -136,6 +136,7 @@ EEOF
 }
 
 start_env() {
+    local bind_addr="${1:-127.0.0.1}"
     mkdir -p "$HOST_DIR/plugins" "$HOST_DIR/profile"
     build_image
 
@@ -146,19 +147,20 @@ start_env() {
             echo "[+] Already running at http://127.0.0.1:$port"
             return
         fi
-        podman start "$CONTAINER_NAME" >/dev/null
-        local port
-        port=$(get_container_port)
-    else
-        local port
-        port=$(find_free_port)
-        podman run -d \
-            --name "$CONTAINER_NAME" \
-            -p "127.0.0.1:${port}:6080" \
-            -v "$HOST_DIR:/data:Z" \
-            "$IMAGE_NAME" >/dev/null
+        podman rm "$CONTAINER_NAME" >/dev/null
     fi
-    echo "[+] Started. Open http://127.0.0.1:${port}"
+    local port
+    port=$(find_free_port)
+    podman run -d \
+        --name "$CONTAINER_NAME" \
+        -p "${bind_addr}:${port}:6080" \
+        -v "$HOST_DIR:/data:Z" \
+        "$IMAGE_NAME" >/dev/null
+    if [ "$bind_addr" = "0.0.0.0" ]; then
+        echo "[+] Started (network exposed). Open http://$(hostname -I | awk '{print $1}'):${port}"
+    else
+        echo "[+] Started. Open http://127.0.0.1:${port}"
+    fi
 }
 
 stop_env() {
@@ -201,21 +203,23 @@ uninstall_env() {
 
 run_action() {
     case "$1" in
-        start)     start_env ;;
-        stop)      stop_env ;;
-        restart)   stop_env; start_env ;;
-        status)    status_env ;;
-        uninstall) uninstall_env ;;
-        *)         banner ;;
+        start)          start_env "127.0.0.1" ;;
+        start-exposed)  start_env "0.0.0.0" ;;
+        stop)           stop_env ;;
+        restart)        stop_env; start_env "127.0.0.1" ;;
+        status)         status_env ;;
+        uninstall)      uninstall_env ;;
+        *)              banner ;;
     esac
 }
 
 show_menu() {
-    local -a actions=("$@")
+    local -a items=("$@")
     echo ""
     local i=1
-    for a in "${actions[@]}"; do
-        echo "  ${i}) ${a}"
+    for item in "${items[@]}"; do
+        local label="${item%%=*}"
+        echo "  ${i}) ${label}"
         ((i++))
     done
     echo "  q) quit"
@@ -223,8 +227,10 @@ show_menu() {
     read -p "Select action: " choice
     if [[ "$choice" == "q" ]]; then
         exit 0
-    elif [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#actions[@]} )); then
-        run_action "${actions[$((choice-1))]}"
+    elif [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#items[@]} )); then
+        local selected="${items[$((choice-1))]}"
+        local action="${selected##*=}"
+        run_action "$action"
     else
         echo "Invalid option."
     fi
@@ -239,13 +245,13 @@ else
         read -p "Install Firefox 52 ESR? [y/N] " -n 1 -r
         echo ""
         if [[ $REPLY =~ ^[Yy]$ ]]; then
-            start_env
+            start_env "127.0.0.1"
         fi
     elif is_running; then
         echo ""
         echo "[+] Running at http://127.0.0.1:$(get_container_port)"
-        show_menu stop restart status uninstall
+        show_menu "stop=stop" "restart=restart" "status=status" "uninstall=uninstall"
     else
-        show_menu start restart status uninstall
+        show_menu "start (local)=start" "start (exposed)=start-exposed" "status=status" "uninstall=uninstall"
     fi
 fi
