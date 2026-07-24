@@ -252,6 +252,6 @@ else
         echo "[+] Running at http://127.0.0.1:$(get_container_port)"
         show_menu "stop=stop" "restart=restart" "status=status" "uninstall=uninstall"
     else
-        show_menu "start (local)=start" "start (exposed)=start-exposed" "status=status" "uninstall=uninstall"
+        show_menu "Start (localhost only)=start" "Start (network accessible)=start-exposed" "status=status" "uninstall=uninstall"
     fi
 fi
