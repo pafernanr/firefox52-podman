@@ -206,7 +206,6 @@ run_action() {
         start)          start_env "127.0.0.1" ;;
         start-exposed)  start_env "0.0.0.0" ;;
         stop)           stop_env ;;
-        restart)        stop_env; start_env "127.0.0.1" ;;
         status)         status_env ;;
         uninstall)      uninstall_env ;;
         *)              banner ;;
@@ -252,7 +251,7 @@ else
     elif is_running; then
         echo ""
         echo "[+] Running at http://127.0.0.1:$(get_container_port)"
-        show_menu "stop=stop" "restart=restart" "status=status" "uninstall=uninstall"
+        show_menu "stop=stop" "status=status" "uninstall=uninstall"
     else
         show_menu "Start (localhost only)=start" "Start (network accessible)=start-exposed" "status=status" "uninstall=uninstall"
     fi
