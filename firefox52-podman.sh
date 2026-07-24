@@ -22,8 +22,6 @@ PLUGINS:
   Flash and Java (Oracle JRE 8) are baked into the image.
   Verify at about:plugins inside Firefox.
 
-UNINSTALL:
-  Select 'uninstall' to remove everything.
 ========================================================
 EOF
 }
