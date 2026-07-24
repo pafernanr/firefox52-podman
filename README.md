@@ -5,7 +5,11 @@
 Run Firefox 52 ESR with Flash Player and Java (NPAPI) in an isolated
 Podman container, accessible through your modern browser via noVNC.
 
-No host dependencies. No Wayland conflicts. No security risk to your system.
+Some legacy web interfaces (ILO, IPMI, old SCADA panels, internal enterprise
+tools) still require Java applets or Flash to function. Modern browsers dropped
+NPAPI plugin support years ago, making these interfaces inaccessible. This
+project gives you a contained, disposable way to reach them without compromising
+your host system.
 
 ## What's inside
 

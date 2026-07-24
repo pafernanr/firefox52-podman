@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+FIREFOX_URL="https://ftp.mozilla.org/pub/firefox/releases/52.9.0esr/linux-x86_64/en-US/firefox-52.9.0esr.tar.bz2"
+FLASH_URL="https://web.archive.org/web/20200530062840if_/https://fpdownload.adobe.com/get/flashplayer/pdc/32.0.0.371/flash_player_npapi_linux.x86_64.tar.gz"
+JAVA_URL="https://archive.org/download/Java-Archive/Java%20SE%208%20%288u202%20and%20earlier%29/8u191/JRE/jre-8u191-linux-x64.tar.gz"
+
 HOST_DIR="$HOME/firefox52-podman"
 CONTAINER_NAME="firefox52-podman"
 IMAGE_NAME="localhost/firefox52"
@@ -64,17 +68,20 @@ build_image() {
 FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV MOZ_PLUGIN_PATH=/opt/plugins:/data/plugins
+ARG FIREFOX_URL
+ARG FLASH_URL
+ARG JAVA_URL
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libdbus-glib-1-2 libgtk2.0-0 libgtk-3-0 libxt6 libasound2 \
         xvfb x11vnc novnc websockify openbox xterm \
         curl bzip2 ca-certificates && \
-    curl -fSL "https://ftp.mozilla.org/pub/firefox/releases/52.9.0esr/linux-x86_64/en-US/firefox-52.9.0esr.tar.bz2" | \
+    curl -fSL "$FIREFOX_URL" | \
         tar -xj -C /opt && \
     mv /opt/firefox /opt/firefox52 && \
     mkdir -p /opt/plugins && \
-    curl -fSL "https://web.archive.org/web/20200530062840if_/https://fpdownload.adobe.com/get/flashplayer/pdc/32.0.0.371/flash_player_npapi_linux.x86_64.tar.gz" | \
+    curl -fSL "$FLASH_URL" | \
         tar -xz -C /opt/plugins libflashplayer.so && \
-    curl -fSL "https://archive.org/download/Java-Archive/Java%20SE%208%20%288u202%20and%20earlier%29/8u191/JRE/jre-8u191-linux-x64.tar.gz" | \
+    curl -fSL "$JAVA_URL" | \
         tar -xz -C /opt --strip-components=0 && \
     ln -sf /opt/jre1.8.0_191/lib/amd64/libnpjp2.so /opt/plugins/libnpjp2.so && \
     rm -rf /var/lib/apt/lists/* && \
@@ -114,7 +121,11 @@ x11vnc -display :1 -forever -nopw -shared -rfbport 5900 -q &
 exec websockify --web=/usr/share/novnc/ 6080 localhost:5900
 EEOF
 
-    if ! podman build --isolation chroot -t "$IMAGE_NAME" "$builddir" > "$buildlog" 2>&1; then
+    if ! podman build --isolation chroot \
+        --build-arg FIREFOX_URL="$FIREFOX_URL" \
+        --build-arg FLASH_URL="$FLASH_URL" \
+        --build-arg JAVA_URL="$JAVA_URL" \
+        -t "$IMAGE_NAME" "$builddir" > "$buildlog" 2>&1; then
         echo "ERROR: Image build failed. Build log:"
         cat "$buildlog"
         rm -rf "$builddir" "$buildlog"
